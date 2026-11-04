@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Traffic Simulation - Multithreaded OS Analysis</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="chart.min.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="header-left">
+        <div class="logo-icon">🚦</div>
+        <div>
+          <h1>Smart Traffic Simulation & Concurrency Framework</h1>
+          <p class="subtitle">C++ Multithreading • Starvation-Resistant Adaptive Scheduling • Fault Recovery • OS Synchronization Analysis</p>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="badge-group">
+          <span id="simStateBadge" class="badge badge-running">RUNNING</span>
+          <span id="phaseBadge" class="badge badge-phase">PHASE: NS_GREEN (8.5s)</span>
+          <span id="safetyBadge" class="badge badge-safe">✓ CONFLICT-FREE</span>
+          <span id="fallbackBadge" class="badge badge-normal">NORMAL MODE</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="nav-tabs">
+      <button class="nav-tab active" data-tab="tab-intersection">🚗 Live Intersection</button>
+      <button class="nav-tab" data-tab="tab-os-monitor">💻 OS Monitor & Concurrency</button>
+      <button class="nav-tab" data-tab="tab-analytics">📊 Research Analytics & Baselines</button>
+      <button class="nav-tab" data-tab="tab-race-demo">⚡ Race Condition Demonstration</button>
+      <button class="nav-tab" data-tab="tab-experiments">🧪 Automated Experiments & CSV Export</button>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- TAB 1: Live Intersection -->
+      <section id="tab-intersection" class="tab-pane active">
+        <div class="intersection-layout">
+          <!-- Left: Canvas Viewport -->
+          <div class="canvas-panel card">
+            <div class="panel-header">
+              <h2>Intersection Telemetry & Animated Traffic Flow</h2>
+              <div class="legend">
+                <span class="legend-item"><span class="dot dot-car"></span> Car</span>
+                <span class="legend-item"><span class="dot dot-bus"></span> Bus</span>
+                <span class="legend-item"><span class="dot dot-truck"></span> Truck</span>
+                <span class="legend-item"><span class="dot dot-emergency"></span> Emergency (Ambulance/Fire)</span>
+              </div>
+            </div>
+            <div class="canvas-wrapper">
+              <canvas id="trafficCanvas" width="700" height="700"></canvas>
+            </div>
+            <div class="lanes-stat-bar">
+              <div class="lane-card" id="laneCardNorth">
+                <h4>NORTH (Worker 0)</h4>
+                <div class="lane-val">Queue: <b id="valQueueN">0</b></div>
+                <div class="lane-val">Avg Wait: <b id="valWaitN">0.0s</b></div>
+                <div class="lane-val">Max Wait: <b id="valMaxWaitN">0.0s</b></div>
+                <div class="lane-val">Signal: <span id="sigBadgeN" class="sig-pill sig-green">GREEN</span></div>
+              </div>
+              <div class="lane-card" id="laneCardSouth">
+                <h4>SOUTH (Worker 1)</h4>
+                <div class="lane-val">Queue: <b id="valQueueS">0</b></div>
+                <div class="lane-val">Avg Wait: <b id="valWaitS">0.0s</b></div>
+                <div class="lane-val">Max Wait: <b id="valMaxWaitS">0.0s</b></div>
+                <div class="lane-val">Signal: <span id="sigBadgeS" class="sig-pill sig-green">GREEN</span></div>
+              </div>
+              <div class="lane-card" id="laneCardEast">
+                <h4>EAST (Worker 2)</h4>
+                <div class="lane-val">Queue: <b id="valQueueE">0</b></div>
+                <div class="lane-val">Avg Wait: <b id="valWaitE">0.0s</b></div>
+                <div class="lane-val">Max Wait: <b id="valMaxWaitE">0.0s</b></div>
+                <div class="lane-val">Signal: <span id="sigBadgeE" class="sig-pill sig-red">RED</span></div>
+              </div>
+              <div class="lane-card" id="laneCardWest">
+                <h4>WEST (Worker 3)</h4>
+                <div class="lane-val">Queue: <b id="valQueueW">0</b></div>
+                <div class="lane-val">Avg Wait: <b id="valWaitW">0.0s</b></div>
+                <div class="lane-val">Max Wait: <b id="valMaxWaitW">0.0s</b></div>
+                <div class="lane-val">Signal: <span id="sigBadgeW" class="sig-pill sig-red">RED</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: Control Deck -->
+          <div class="controls-panel">
+            <div class="card control-box">
+              <h3>Simulation Execution Controls</h3>
+              <div class="btn-row">
+                <button id="btnStart" class="btn btn-success">▶ Start</button>
+                <button id="btnPause" class="btn btn-warning">⏸ Stop</button>
+                <button id="btnReset" class="btn btn-danger">↺ Reset</button>
+              </div>
+              <div class="form-group mt-2">
+                <label>Simulation Speed Multiplier: <span id="lblSpeed">1.0x</span></label>
+                <input type="range" id="rngSpeed" min="0.5" max="5.0" step="0.5" value="1.0">
+              </div>
+            </div>
+
+            <div class="card control-box">
+              <h3>Scheduling Policy & Algorithm</h3>
+              <div class="form-group">
+                <label>Controller Strategy:</label>
+                <select id="selAlgorithm" class="select-input">
+                  <option value="2" selected>Proposed C: Starvation-Resistant & Fault-Tolerant</option>
+                  <option value="1">Baseline B: Adaptive (Density-Only)</option>
+                  <option value="0">Baseline A: Fixed-Time Round-Robin</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Traffic Load Preset:</label>
+                <select id="selPreset" class="select-input">
+                  <option value="uniform">Low Uniform (15 veh/min each)</option>
+                  <option value="asymmetric">Asymmetric (North 40, South 10, East 35, West 8)</option>
+                  <option value="starvation">Starvation Stress (West 3, North 45, South 45, East 40)</option>
+                  <option value="rush">Peak Rush Hour (50 veh/min all)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="card control-box">
+              <h3>🚨 Emergency Vehicle Preemption</h3>
+              <p class="text-sm">Preempts signals through safe yellow & all-red transition without conflict.</p>
+              <div class="input-inline">
+                <select id="selEmergencyDir" class="select-input">
+                  <option value="0">North Approach</option>
+                  <option value="1">South Approach</option>
+                  <option value="2">East Approach</option>
+                  <option value="3" selected>West Approach</option>
+                </select>
+                <select id="selEmergencyType" class="select-input">
+                  <option value="ambulance">Ambulance</option>
+                  <option value="fire">Fire Truck</option>
+                </select>
+              </div>
+              <button id="btnDispatchEmergency" class="btn btn-emergency mt-2">🚑 Dispatch Emergency Vehicle</button>
+              <div id="emergencyStatusLog" class="status-msg">No active emergency</div>
+            </div>
+
+            <div class="card control-box">
+              <h3>⚠️ Fault Injection & Watchdog Recovery</h3>
+              <p class="text-sm">Inject simulated thread deadlock or controller processing delay.</p>
+              <div class="input-inline">
+                <select id="selFaultTarget" class="select-input">
+                  <option value="0">North Lane Worker</option>
+                  <option value="1">South Lane Worker</option>
+                  <option value="2">East Lane Worker</option>
+                  <option value="3">West Lane Worker</option>
+                </select>
+                <select id="selFaultType" class="select-input">
+                  <option value="1">Worker Hang (Missed Heartbeat)</option>
+                  <option value="2">Controller Delay (Lag)</option>
+                  <option value="3">Stale Telemetry Data</option>
+                </select>
+              </div>
+              <div class="btn-row mt-2">
+                <button id="btnInjectFault" class="btn btn-warning">Inject Fault</button>
+                <button id="btnRecoverFault" class="btn btn-success">Recover Normal</button>
+              </div>
+              <div id="faultStatusLog" class="status-msg">System Health: Normal (All heartbeats active)</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: OS Monitor & Concurrency -->
+      <section id="tab-os-monitor" class="tab-pane">
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <div class="metric-title">Process CPU Utilization</div>
+            <div class="metric-value"><span id="osCpuVal">0.0</span>%</div>
+            <div class="metric-sub">Multi-core process load</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-title">Memory Working Set</div>
+            <div class="metric-value"><span id="osMemVal">0.0</span> MB</div>
+            <div class="metric-sub">Resident set memory</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-title">Controller Decision Latency</div>
+            <div class="metric-value"><span id="osLatencyVal">0.0</span> µs</div>
+            <div class="metric-sub">Phase calculation latency</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-title">Sync Overhead (Lock Wait)</div>
+            <div class="metric-value"><span id="osSyncVal">0.0</span> µs</div>
+            <div class="metric-sub">Avg mutex contention delay</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-title">Missed Deadlines</div>
+            <div class="metric-value"><span id="osDeadlinesVal">0</span></div>
+            <div class="metric-sub">Decisions > 50ms</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-title">Starvation Violations</div>
+            <div class="metric-value"><span id="osStarvationVal">0</span></div>
+            <div class="metric-sub">Vehicles waiting > 20s</div>
+          </div>
+        </div>
+
+        <div class="card mt-3">
+          <h2>Active Concurrent Thread Table (OS Level vs Logical States)</h2>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Thread Name</th>
+                <th>OS Thread ID</th>
+                <th>Logical Status</th>
+                <th>Heartbeat Age</th>
+                <th>Lock Wait Count</th>
+                <th>Avg Lock Wait</th>
+                <th>Health Watchdog</th>
+              </tr>
+            </thead>
+            <tbody id="threadsTableBody">
+              <!-- Populated dynamically -->
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card mt-3">
+          <h2>Watchdog Heartbeat & Fault Recovery Timeline</h2>
+          <div id="watchdogLogBox" class="terminal-box">
+            <p>[SYSTEM] Watchdog monitoring initialized. Heartbeat polling interval = 250ms.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: Research Analytics & Baselines -->
+      <section id="tab-analytics" class="tab-pane">
+        <div class="analytics-header card">
+          <h2>Comparative Research Analytics: Baseline A vs Baseline B vs Proposed C</h2>
+          <p>Evaluation of traffic throughput, delay bounds, Jain's fairness index, and OS synchronization costs.</p>
+        </div>
+
+        <div class="charts-grid mt-3">
+          <div class="card chart-box">
+            <h3>Average Waiting Time Over Time</h3>
+            <canvas id="chartWaitTime"></canvas>
+          </div>
+          <div class="card chart-box">
+            <h3>Controller Decision Latency (µs)</h3>
+            <canvas id="chartLatency"></canvas>
+          </div>
+          <div class="card chart-box">
+            <h3>Throughput Comparison (Vehicles / Min)</h3>
+            <canvas id="chartThroughputBar"></canvas>
+          </div>
+          <div class="card chart-box">
+            <h3>Jain's Fairness Index & Starvation Events</h3>
+            <canvas id="chartFairnessBar"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 4: Race Condition Demonstration -->
+      <section id="tab-race-demo" class="tab-pane">
+        <div class="card">
+          <h2>Educational Race Condition Demonstration Mode</h2>
+          <p>
+            Demonstrates data corruption and lost updates caused by unsynchronized concurrent access
+            to shared memory vs serialized access protected by <code>std::mutex</code>.
+          </p>
+
+          <div class="demo-controls-row mt-2">
+            <div class="form-group">
+              <label>Execution Mode:</label>
+              <select id="selRaceMode" class="select-input">
+                <option value="0">Unsynchronized (Data Race Induced)</option>
+                <option value="1">Synchronized (std::mutex Protected)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Worker Threads:</label>
+              <select id="selRaceThreads" class="select-input">
+                <option value="4" selected>4 Threads</option>
+                <option value="8">8 Threads</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Iterations / Thread:</label>
+              <select id="selRaceIters" class="select-input">
+                <option value="50000">50,000 iterations</option>
+                <option value="100000" selected>100,000 iterations</option>
+                <option value="250000">250,000 iterations</option>
+              </select>
+            </div>
+            <button id="btnRunRaceDemo" class="btn btn-primary" style="margin-top:24px;">Run Experiment</button>
+          </div>
+
+          <div id="raceResultsBox" class="mt-3" style="display:none;">
+            <div class="metrics-grid">
+              <div class="metric-card">
+                <div class="metric-title">Expected Total</div>
+                <div class="metric-value" id="raceExpectedVal">0</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-title">Actual Total</div>
+                <div class="metric-value" id="raceActualVal">0</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-title">Lost Updates (Data Races)</div>
+                <div class="metric-value" style="color:var(--danger)" id="raceLostVal">0</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-title">Corruption Rate</div>
+                <div class="metric-value" style="color:var(--danger)" id="raceCorruptionVal">0.0%</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-title">Execution Duration</div>
+                <div class="metric-value" id="raceDurationVal">0.0 ms</div>
+              </div>
+            </div>
+            <div class="card mt-2" style="background:#131824; border-color:#2a334a;">
+              <h4>Architectural Analysis:</h4>
+              <p id="raceAnalysisText" class="mt-1" style="line-height:1.6; color:#9cb1d4;"></p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 5: Automated Experiments & CSV Export -->
+      <section id="tab-experiments" class="tab-pane">
+        <div class="card">
+          <div class="panel-header">
+            <div>
+              <h2>Reproducible Multi-Scenario Academic Experiments</h2>
+              <p>Automated benchmarking of fixed-time, adaptive, and proposed starvation-resistant algorithms.</p>
+            </div>
+            <div class="btn-row">
+              <button id="btnRunBatchBenchmark" class="btn btn-primary">⚡ Run All Benchmarks</button>
+              <a id="btnExportCsv" href="/api/export_csv" class="btn btn-success" download="traffic_simulation_experiments.csv">📥 Export Full CSV Dataset</a>
+            </div>
+          </div>
+
+          <div class="table-responsive mt-3">
+            <table class="data-table" id="benchmarkTable">
+              <thead>
+                <tr>
+                  <th>Scenario</th>
+                  <th>Algorithm</th>
+                  <th>Sync Strategy</th>
+                  <th>Served</th>
+                  <th>Throughput (/min)</th>
+                  <th>Avg Wait (s)</th>
+                  <th>Max Wait (s)</th>
+                  <th>Fairness Index</th>
+                  <th>Starvation Events</th>
+                  <th>Avg CPU %</th>
+                  <th>Latency (µs)</th>
+                  <th>Lock Overhead (µs)</th>
+                </tr>
+              </thead>
+              <tbody id="benchmarkTableBody">
+                <tr><td colspan="12" style="text-align:center; color:#6b7c96;">Click "Run All Benchmarks" to execute multi-scenario test suite.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <span>Operating Systems Mini-Project • C++17 Concurrent Traffic Controller</span>
+      <span>Starvation Aging: <code>Score = α·Density + β·Wait + γ·Starvation</code></span>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
